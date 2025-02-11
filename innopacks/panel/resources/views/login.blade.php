@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base href="{{ panel_route('home.index') }}">
-  <title>@yield('title', __('panel/login.title'))</title>
+  <title>Afrobeads</title>
   <meta name="keywords" content="@yield('keywords', __('panel/login.keywords'))">
   <meta name="description" content="@yield('description', __('panel/login.description'))">
   <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -40,7 +40,8 @@
       <div class="login-wrap">
         <div class="card login-content">
             <div class="card-header">
-              <h3 class="fw-bold text-center">{{ __('panel/login.login_index') }}</h3>
+              {{-- <h3 class="fw-bold text-center">{{ __('panel/login.login_index') }}</h3> --}}
+            <h3 class="fw-bold text-center">Afrobeads Admin Login</h3>
             </div>
 
             <div class="card-body">
@@ -74,7 +75,7 @@
             </div>
         </div>
         <p class="text-center text-secondary mt-5">
-          <a href="https://www.innoshop.com" class="ms-2" target="_blank">InnoShop</a>
+          <a href="" class="ms-2" target="_blank">Afrobeads</a>
           {{ innoshop_version() }} &copy; {{ date('Y') }} All Rights Reserved
         </p>
       </div>

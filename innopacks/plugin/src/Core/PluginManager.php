@@ -145,21 +145,44 @@ class PluginManager
     protected function getPluginsConfig(): array
     {
         $installed = [];
-        $resource  = opendir($this->getPluginsDir());
-        while ($filename = @readdir($resource)) {
-            if ($filename == '.' || $filename == '..') {
+        $pluginsDir = $this->getPluginsDir();
+    
+        // Check if the plugins directory exists
+        if (!is_dir($pluginsDir)) {
+            // Log error and return an empty array
+            error_log("Plugins directory does not exist: " . $pluginsDir);
+            return $installed; // or alternatively, you could throw an exception
+        }
+    
+        // Try to open the directory
+        $resource = opendir($pluginsDir);
+        if ($resource === false) {
+            // Log error if unable to open the directory
+            error_log("Unable to open plugins directory: " . $pluginsDir);
+            return $installed; // or alternatively, you could throw an exception
+        }
+    
+        // Read the contents of the plugins directory
+        while (($filename = readdir($resource)) !== false) {
+            if ($filename === '.' || $filename === '..') {
                 continue;
             }
-            $path = $this->getPluginsDir().DIRECTORY_SEPARATOR.$filename;
+    
+            $path = $pluginsDir . DIRECTORY_SEPARATOR . $filename;
             if (is_dir($path)) {
-                $packageJsonPath = $path.DIRECTORY_SEPARATOR.'config.json';
+                $packageJsonPath = $path . DIRECTORY_SEPARATOR . 'config.json';
                 if (file_exists($packageJsonPath)) {
                     $installed[$filename] = json_decode(file_get_contents($packageJsonPath), true);
+                } else {
+                    // Log if config.json does not exist
+                    error_log("Config JSON not found for plugin: " . $path);
                 }
             }
         }
+    
+        // Close the directory resource
         closedir($resource);
-
+    
         return $installed;
     }
 
