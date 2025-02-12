@@ -5,6 +5,7 @@
 
   @push('header')
     <script src="{{ asset('vendor/vue/3.5/vue.global' . (!config('app.debug') ? '.prod' : '') . '.js') }}"></script>
+    <script src="https://js.stripe.com/v3/"></script>
   @endpush
 
   <x-front-breadcrumb type="route" value="checkout.index" title="{{ __('front/checkout.checkout') }}"/>
@@ -148,6 +149,14 @@
               <div v-if="!source.billingMethods.length" class="alert alert-warning"><i class="bi bi-exclamation-circle-fill"></i> {{ __('front/checkout.no_billing_methods') }}</div>
             </div>
           </div>
+          <div class="checkout-item">
+            <div class="title-wrap">
+              <div class="title">{{ __('front/checkout.payment_details') }}</div>
+            </div>
+            <div id="card-element" class="form-control"></div>
+            <div id="card-errors" role="alert"></div>
+          </div>
+
 
           <div class="checkout-item">
             <div class="title-wrap">
@@ -198,9 +207,12 @@
             </ul>
 
             @hookinsert('checkout.confirm.before')
-            <button class="btn btn-primary btn-lg fw-bold w-100 to-checkout" :disabled="isCheckout"
+            {{-- <button class="btn btn-primary btn-lg fw-bold w-100 to-checkout" :disabled="isCheckout"
                     type="button" @click="submitCheckout">{{ __('front/checkout.place_order') }}
-            </button>
+            </button> --}}
+            <button class="btn btn-primary btn-lg fw-bold w-100 to-checkout" :disabled="isCheckout"
+        type="button" @click="submitCheckout">{{ __('front/checkout.place_order') }}
+</button>
           </div>
         </div>
       </div>
@@ -213,6 +225,12 @@
 
 @push('footer')
   <script>
+
+const stripe = Stripe('{{ env('STRIPE_PUBLIC_KEY') }}');
+const elements = stripe.elements();
+const cardElement = elements.create('card');
+cardElement.mount('#card-element');
+
     const {createApp, ref, reactive, onMounted, computed} = Vue
     const api = {
       address: @json(front_route('addresses.store')),
@@ -301,19 +319,54 @@
           })
         }
 
-        const submitCheckout = () => {
-          layer.load(2, {shade: [0.3, '#fff']})
-          axios.post(api.checkoutConfirm, current).then(function (res) {
-            if (res.success) {
-              layer.msg(res.message, {time: 1000}, function () {
-                // location.href = '{{ front_route('checkout.success') }}?order_number=' + res.data.number;
-                location.href = inno.getBase() + '/orders/' + res.data.number + '/pay'
-              })
-            }
-          }).finally(function () {
-            layer.closeAll('loading')
-          });
-        }
+        // const submitCheckout = () => {
+        //   layer.load(2, {shade: [0.3, '#fff']})
+        //   axios.post(api.checkoutConfirm, current).then(function (res) {
+        //     if (res.success) {
+        //       layer.msg(res.message, {time: 1000}, function () {
+        //         // location.href = '{{ front_route('checkout.success') }}?order_number=' + res.data.number;
+        //         location.href = inno.getBase() + '/orders/' + res.data.number + '/pay'
+        //       })
+        //     }
+        //   }).finally(function () {
+        //     layer.closeAll('loading')
+        //   });
+        // }
+        const submitCheckout = async () => {
+  layer.load(2, {shade: [0.3, '#fff']});
+
+  // Create a payment intent on your server
+  const response = await axios.post('/create-payment-intent', {
+    amount: Math.round(source.totalAmount * 100), // Convert to cents
+  });
+
+  const clientSecret = response.data.clientSecret;
+
+  // Confirm the payment with Stripe.js
+  const result = await stripe.confirmCardPayment(clientSecret, {
+    payment_method: {
+      card: cardElement,
+      billing_details: {
+        name: current.name, // Make sure to pass the customer's name
+      },
+    },
+  });
+
+  if (result.error) {
+    // Show error to your customer
+    layer.msg(result.error.message);
+  } else {
+    if (result.paymentIntent.status === 'succeeded') {
+      // The payment has been processed!
+      layer.msg('Payment succeeded!', {time: 1000}, function () {
+        location.href = inno.getBase() + '/orders/' + result.paymentIntent.id + '/pay';
+      });
+    }
+  }
+
+  layer.closeAll('loading');
+};
+
 
         const login = () => {
           inno.openLogin()
@@ -337,4 +390,103 @@
       addressApp.updataAddress(params)
     }
   </script>
+  <script>
+    // First, ensure you have the proper Stripe initialization
+const stripe = Stripe('{{ env('STRIPE_PUBLIC_KEY') }}');
+const elements = stripe.elements();
+const style = {
+  base: {
+    color: '#32325d',
+    fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+    fontSmoothing: 'antialiased',
+    fontSize: '16px',
+    '::placeholder': {
+      color: '#aab7c4'
+    }
+  },
+  invalid: {
+    color: '#fa755a',
+    iconColor: '#fa755a'
+  }
+};
+
+const cardElement = elements.create('card', { style });
+cardElement.mount('#card-element');
+
+// Handle real-time validation errors from the card Element
+cardElement.on('change', function(event) {
+  const displayError = document.getElementById('card-errors');
+  if (event.error) {
+    displayError.textContent = event.error.message;
+  } else {
+    displayError.textContent = '';
+  }
+});
+
+// Update the submitCheckout method in your Vue app
+const submitCheckout = async () => {
+  try {
+    layer.load(2, { shade: [0.3, '#fff'] });
+
+    // First, submit the order to your backend to create it
+    const orderResponse = await axios.post(api.checkoutConfirm, current);
+
+    if (!orderResponse.data.success) {
+      throw new Error(orderResponse.data.message);
+    }
+
+    // Create a payment intent
+    const paymentResponse = await axios.post('/api/create-payment-intent', {
+      order_number: orderResponse.data.data.number,
+      amount: orderResponse.data.data.total,
+      currency: 'usd' // Change this according to your currency
+    });
+
+    if (!paymentResponse.data.clientSecret) {
+      throw new Error('Failed to create payment intent');
+    }
+
+    // Confirm the card payment
+    const result = await stripe.confirmCardPayment(paymentResponse.data.clientSecret, {
+      payment_method: {
+        card: cardElement,
+        billing_details: {
+          name: current.billing_address.name,
+          email: current.billing_address.email,
+          phone: current.billing_address.phone,
+          address: {
+            line1: current.billing_address.address_1,
+            line2: current.billing_address.address_2,
+            city: current.billing_address.city,
+            state: current.billing_address.state,
+            postal_code: current.billing_address.zipcode,
+            country: current.billing_address.country_code
+          }
+        }
+      }
+    });
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    if (result.paymentIntent.status === 'succeeded') {
+      // Update the order status on your backend
+      await axios.post(`/api/orders/${orderResponse.data.data.number}/payment-completed`, {
+        payment_intent_id: result.paymentIntent.id,
+        payment_method_id: result.paymentIntent.payment_method,
+        status: result.paymentIntent.status
+      });
+
+      layer.msg('Payment successful!', { time: 1000 }, function() {
+        location.href = `${inno.getBase()}/checkout/success?order_number=${orderResponse.data.data.number}`;
+      });
+    }
+  } catch (error) {
+    layer.msg(error.message || 'Payment failed. Please try again.');
+  } finally {
+    layer.closeAll('loading');
+  }
+};
+    </script>
 @endpush

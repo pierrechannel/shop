@@ -21,6 +21,7 @@
         "mobiledetect/mobiledetectlib": "^4.8",
         "nelexa/zip": "^4.0",
         "spatie/laravel-permission": "^6.7",
+        "stripe/stripe-php": "^16.5",
         "tormjens/eventy": "^0.9.3",
         "w7corp/easywechat": "^6.7",
         "wikimedia/composer-merge-plugin": "^2.1"

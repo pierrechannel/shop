@@ -1,11 +1,4 @@
 <?php
-/**
- * Copyright (c) Since 2024 InnoShop - All Rights Reserved
- *
- * @link       https://www.innoshop.com
- * @author     InnoShop <team@innoshop.com>
- * @license    https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- */
 
 namespace InnoShop\Front\Controllers;
 
@@ -18,16 +11,12 @@ use InnoShop\Common\Repositories\OrderRepo;
 use InnoShop\Common\Services\CheckoutService;
 use InnoShop\Common\Services\StateMachineService;
 use InnoShop\Front\Requests\CheckoutConfirmRequest;
+use Stripe\Stripe;
+use Stripe\PaymentIntent;
 use Throwable;
 
 class CheckoutController extends Controller
 {
-    /**
-     * Get checkout data and render page.
-     *
-     * @return mixed
-     * @throws Throwable
-     */
     public function index(): mixed
     {
         try {
@@ -45,13 +34,6 @@ class CheckoutController extends Controller
         }
     }
 
-    /**
-     * Update checkout, include shipping address, shipping method, billing address, billing method
-     *
-     * @param  Request  $request
-     * @return JsonResponse
-     * @throws Throwable
-     */
     public function update(Request $request): JsonResponse
     {
         $data     = $request->all();
@@ -62,13 +44,6 @@ class CheckoutController extends Controller
         return json_success('更新成功', $result);
     }
 
-    /**
-     * Confirm checkout and place order
-     *
-     * @param  CheckoutConfirmRequest  $request
-     * @return JsonResponse
-     * @throws Throwable
-     */
     public function confirm(CheckoutConfirmRequest $request): JsonResponse
     {
         try {
@@ -81,18 +56,32 @@ class CheckoutController extends Controller
             $order = $checkout->confirm();
             StateMachineService::getInstance($order)->changeStatus(StateMachineService::UNPAID, '', true);
 
+            // Initialize Stripe
+            Stripe::setApiKey(env('STRIPE_KEY'));
+
+            // Create a PaymentIntent
+            $paymentIntent = PaymentIntent::create([
+                'amount' => $order->total * 100, // amount in cents
+                'currency' => 'usd',
+                'payment_method_types' => ['card'],
+                'description' => "Payment for order {$order->number}",
+                'metadata' => [
+                    'order_id' => $order->id,
+                ],
+            ]);
+
+            // Confirm the PaymentIntent
+            $paymentIntent->confirm();
+
+            // Update order status to paid
+            StateMachineService::getInstance($order)->changeStatus(StateMachineService::PAID, '', true);
+
             return json_success(front_trans('common.submitted_success'), $order);
         } catch (Exception $e) {
             return json_fail($e->getMessage());
         }
     }
 
-    /**
-     * Checkout success.
-     *
-     * @param  Request  $request
-     * @return mixed
-     */
     public function success(Request $request): mixed
     {
         $orderNumber = $request->get('order_number');

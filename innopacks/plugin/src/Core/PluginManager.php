@@ -146,14 +146,14 @@ class PluginManager
     {
         $installed = [];
         $pluginsDir = $this->getPluginsDir();
-    
+
         // Check if the plugins directory exists
         if (!is_dir($pluginsDir)) {
             // Log error and return an empty array
             error_log("Plugins directory does not exist: " . $pluginsDir);
             return $installed; // or alternatively, you could throw an exception
         }
-    
+
         // Try to open the directory
         $resource = opendir($pluginsDir);
         if ($resource === false) {
@@ -161,13 +161,13 @@ class PluginManager
             error_log("Unable to open plugins directory: " . $pluginsDir);
             return $installed; // or alternatively, you could throw an exception
         }
-    
+
         // Read the contents of the plugins directory
         while (($filename = readdir($resource)) !== false) {
             if ($filename === '.' || $filename === '..') {
                 continue;
             }
-    
+
             $path = $pluginsDir . DIRECTORY_SEPARATOR . $filename;
             if (is_dir($path)) {
                 $packageJsonPath = $path . DIRECTORY_SEPARATOR . 'config.json';
@@ -179,10 +179,10 @@ class PluginManager
                 }
             }
         }
-    
+
         // Close the directory resource
         closedir($resource);
-    
+
         return $installed;
     }
 

@@ -9,6 +9,11 @@
 
 use Illuminate\Support\Facades\Route;
 use InnoShop\RestAPI\FrontApiControllers;
+use App\Http\Controllers\PaymentController;
+
+
+ Route::post('/create-payment-intent', [PaymentController::class, 'createPaymentIntent']);
+Route::post('/api/orders/{order}/payment-completed', 'PaymentController@paymentCompleted');
 
 Route::get('/', [FrontApiControllers\HomeController::class, 'base'])->name('home.base');
 Route::get('/home', [FrontApiControllers\HomeController::class, 'index'])->name('home.index');
